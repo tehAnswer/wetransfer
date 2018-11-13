@@ -1,9 +1,15 @@
 extern crate reqwest;
+#[cfg(test)]
+extern crate mockito;
+use responses::Login;
+
 pub mod transfer;
 pub mod board;
 
-use responses::Login;
-
+#[cfg(not(test))]
+const LOGIN_URL: &'static str = "https://dev.wetransfer.com/v2/authorize";
+#[cfg(test)]
+const LOGIN_URL: &'static str = mockito::SERVER_URL;
 
 #[derive(Debug)]
 pub struct Client {
@@ -22,11 +28,31 @@ impl Client {
 
     fn login<S: Into<String>+ToString>(app_token: S) -> Login {
         let http_client = reqwest::Client::new();
-        http_client
-          .post("https://dev.wetransfer.com/v2/authorize")
+        let mut response = http_client
+          .post(LOGIN_URL)
           .header("x-api-key", app_token.to_string())
-          .send().unwrap()
-          .json::<Login>().unwrap()
+          .send().unwrap();
+        response.json::<Login>().unwrap()
     }
 
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use self::mockito::mock;
+
+    #[test]
+    fn it_logins() {
+        let app_token = "1234";
+        let _m = mock("POST", "/")
+          .with_status(200)
+          .match_header("x-api-key", app_token)
+          .with_body("{\"token\": \"jwt_token\", \"success\": true}")
+          .create();
+
+        let client = Client::new(app_token);
+        assert_eq!(client.boards.jwt, "jwt_token");
+        assert_eq!(client.transfers.jwt, "jwt_token");
+    }
 }
