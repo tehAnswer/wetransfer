@@ -1,4 +1,5 @@
 #[derive(Debug)]
-pub struct Board {
+pub struct BoardService {
     pub jwt: String,
+    pub app_token : String,
 }

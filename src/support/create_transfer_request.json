@@ -1,0 +1,20 @@
+{
+  "success" : true,
+  "id" : "32a6ef6003f1429be0cf1674dd8fbdef20181019143517",
+  "message" : "foo",
+  "state" : "uploading",
+  "url" : null,
+  "expires_at": "2018-01-01T00:00:00Z",
+  "files" : [
+    {
+      "multipart" : {
+        "part_numbers" : 1,
+        "chunk_size" : 212
+      },
+      "size" : 212,
+      "type" : "file",
+      "name" : "Cargo.toml",
+      "id" : "c964caf6c54343f3b6e9610cb4ac5ea220181019143517"
+    }
+  ]
+}
