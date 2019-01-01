@@ -15,3 +15,6 @@ pub struct FileRequest {
     #[serde(default)]
     pub size: u64,
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GetUrlRequest {}

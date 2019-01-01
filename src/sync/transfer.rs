@@ -1,10 +1,8 @@
 use std::fs;
 use std::path::Path;
 
-use responses::CreateTransferResponse;
-use requests::CreateTransferRequest;
-use responses::WeTransferError;
-use requests::FileRequest;
+use responses::*;
+use requests::*;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use reqwest::{Response, Client};
@@ -52,6 +50,10 @@ impl TransferService {
     //     Transfer { }
     // }
 
+    pub fn upload_url_for<S: Into<String>+ToString>(&self, upload_id: S, file_id: S, part: i64) -> Result<GetUploadUrlResponse, WeTransferError> {
+        let path = format!("/{}/files/{}/upload-url/{}", upload_id.to_string(), file_id.to_string(), part);
+        self.perform_get::<GetUploadUrlResponse>(&path)
+    }
 
     pub fn create_transfer_request<S: Into<String>+ToString>(&self, message: S, paths: Vec<S>) -> Result<CreateTransferResponse, WeTransferError> {
         let files = paths.into_iter().map(|path_str: S| {
@@ -69,7 +71,7 @@ impl TransferService {
                     files: file_requests
                 };
 
-                self.perform_request::<CreateTransferRequest, CreateTransferResponse>(TRANSFERS_URL, payload)
+                self.perform_post::<CreateTransferRequest, CreateTransferResponse>("/", payload)
             },
             Err(transfer_error) => Err(transfer_error)
         }
@@ -89,13 +91,27 @@ impl TransferService {
         }
     }
 
-    fn perform_request<T: Serialize, U: DeserializeOwned>(&self, url: &str, payload: T) -> Result<U, WeTransferError> {
+    fn perform_get<U: DeserializeOwned>(&self, path: &str) -> Result<U, WeTransferError> {
         let result = self.http_client
-            .post(url)
+            .get(format!("{}{}", TRANSFERS_URL, path).as_str())
+            .header("x-api-key", self.app_token.to_string())
+            .header("Content-Type", "application/json")
+            .header("Authorization", format!("Bearer {}", self.jwt))
+            .send();
+        self.handle_response(result)
+    }
+
+    fn perform_post<T: Serialize, U: DeserializeOwned>(&self, path: &str, payload: T) -> Result<U, WeTransferError> {
+        let result = self.http_client
+            .post(format!("{}{}", TRANSFERS_URL, path).as_str())
             .header("x-api-key", self.app_token.to_string())
             .header("Content-Type", "application/json")
             .header("Authorization", format!("Bearer {}", self.jwt))
             .json(&payload).send();
+        self.handle_response(result)
+    }
+
+    fn handle_response<U: DeserializeOwned>(&self, result: Result<Response, reqwest::Error>) -> Result<U, WeTransferError> {
         match result {
             Ok(mut response) => {
                 if response.status().is_success() {
@@ -115,7 +131,6 @@ impl TransferService {
                             message: String::from("Error while parsing a WeTransfer error response. Contact mainteners.")
                         }) 
                     }
-                    // Err(WeTransferError { status: response.status().as_u16(), message: response.description().to_string() })
                 }
             },
             Err(error) => Err(WeTransferError {
@@ -135,7 +150,6 @@ mod tests {
     #[test]
     fn it_creates_transfers() {
         let body = fs::read_to_string(Path::new("src/support/create_transfer_request.json")).expect("Fixtures:");
-        println!("{}", mockito::SERVER_URL);
         let _m = mock("POST", "/")
           .with_status(201)
           .match_header("Authorization", "Bearer jwt-token")
@@ -155,5 +169,24 @@ mod tests {
         assert_eq!(transfer_request.files[0].file_type, "file");
         assert_eq!(transfer_request.files[0].name, "Cargo.toml");
         assert_eq!(transfer_request.files[0].id, "c964caf6c54343f3b6e9610cb4ac5ea220181019143517");
+    }
+
+    #[test]
+    fn it_requests_s3_urls_for_uploading_parts() {
+        let upload_id = "041bae61-adb4-4ba2-80eb-48719396f0e3";
+        let file_id = "783b21e9-f8f1-46d5-894c-62954109d11d";
+        let path = format!("/{}/files/{}/upload-url/1", upload_id, file_id);
+        let _m = mock("GET", path.as_str())
+          .with_status(201)
+          .match_header("Authorization", "Bearer jwt-token")
+          .match_header("x-api-key", "1234")
+          .with_body("{\"success\": true, \"url\":\"https://s3-wetransfer.com/uploadhere\"}")
+          .create();
+
+        let service = TransferService::new("jwt-token", "1234");
+        let upload_url_request = service.upload_url_for(upload_id, file_id, 1).unwrap();
+
+        assert!(upload_url_request.success);
+        assert_eq!(upload_url_request.url, "https://s3-wetransfer.com/uploadhere");
     }
 }

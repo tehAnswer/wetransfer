@@ -55,3 +55,11 @@ pub struct MultipartResponse {
     #[serde(default)]
     pub chunk_size: i64,
 }
+
+#[derive(Default, Debug, Serialize, Deserialize)]
+pub struct GetUploadUrlResponse {
+    #[serde(default)]
+    pub url: String,
+    #[serde(default)]
+    pub success: bool
+}
