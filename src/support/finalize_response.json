@@ -1,0 +1,18 @@
+{
+    "id": "041bae61-adb4-4ba2-80eb-48719396f0e3",
+    "message": "My first transfer!",
+    "state": "processing",
+    "url": "https://we.tl/t-12344657",
+    "expires_at": "2018-01-01T00:00:00Z",
+    "files": [
+      {
+        "id": "random-hash",
+        "name": "big-bobis.jpg",
+        "size": 195906,
+        "multipart": {
+          "part_numbers": 1,
+          "chunk_size": 195906
+        }
+      }
+    ]
+  }
