@@ -73,3 +73,16 @@ pub struct CompleteFileUploadResponse {
     pub chunk_size: u64,
 }
 
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CreateBoardResponse {
+    pub id: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub state: String,
+    pub url: String,
+    pub items: Vec<::serde_json::Value>,
+}
+
+
+
+

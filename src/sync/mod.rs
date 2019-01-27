@@ -3,6 +3,7 @@ use responses::WeTransferError;
 
 pub mod transfer;
 pub mod board;
+pub mod requester;
 
 #[cfg(not(test))]
 const LOGIN_URL: &'static str = "https://dev.wetransfer.com/v2/authorize";
@@ -21,13 +22,11 @@ impl Client {
         match result {
             Ok(login) => {
                 let jwt = login.token;
-                Ok(Client {
+                let client = Client {
                     transfers: transfer::TransferService::new(jwt.clone(), app_token.to_string()),
-                    boards: board::BoardService {
-                        jwt: jwt.clone(),
-                        app_token: app_token.to_string()
-                    }
-                })
+                    boards: board::BoardService::new(jwt.clone(), app_token.to_string())
+                };
+                Ok(client)
             },
             Err(error) => Err(error),
         }
@@ -46,9 +45,7 @@ impl Client {
             error_response.status = response.status().as_u16();
             Err(error_response)
         }
-
     }
-
 }
 
 #[cfg(test)]
@@ -65,11 +62,8 @@ mod tests {
           .with_body("{\"token\": \"jwt_token\", \"success\": true}")
           .create();
 
-        let client = Client::new(app_token).unwrap();
-        assert_eq!(client.boards.jwt, "jwt_token");
-        assert_eq!(client.boards.app_token, app_token);
-        assert_eq!(client.transfers.jwt, "jwt_token");
-        assert_eq!(client.transfers.app_token, app_token);
+        let client_creation = Client::new(app_token);
+        assert!(client_creation.is_ok());
     }
 
     #[test]

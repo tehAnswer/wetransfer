@@ -1,24 +1,17 @@
+use sync::requester::RequestService;
 use std::fs;
 use std::path::Path;
 use std::fs::File;
-use std::io;
+use std::error::Error;
 use std::io::prelude::*;
 use std::borrow::ToOwned;
 
 use responses::*;
 use requests::*;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
-use reqwest::{Response, Client, Body};
-use std::error::Error;
-use reqwest::header::{AUTHORIZATION, ACCEPT, CONTENT_TYPE, HeaderValue, HeaderMap, HeaderName};
-
 
 #[derive(Debug)]
 pub struct TransferService {
-    pub jwt: String,
-    pub app_token : String,
-    http_client: Client,
+    requester: RequestService,
 }
 
 #[cfg(not(test))]
@@ -29,15 +22,13 @@ const TRANSFERS_URL: &'static str = mockito::SERVER_URL;
 impl TransferService {
     pub fn new<S: Into<String>+ToString>(jwt: S, app_token: S) -> TransferService {
         TransferService {
-            jwt: jwt.to_string(),
-            app_token: app_token.to_string(),
-            http_client: Client::new(),
+            requester: RequestService::new(jwt.to_string(), app_token.to_string(), TRANSFERS_URL.to_owned())
         }
     }
 
     pub fn find<S: Into<String>+ToString>(&self, transfer_id: S) -> Result<Transfer, WeTransferError> {
         let path = format!("/{}", transfer_id.to_string());
-        self.perform_get::<Transfer>(&path)
+        self.requester.get::<Transfer>(&path)
     }
 
     pub fn create<S: Into<String>+ToString>(&self, message: S, paths: &Vec<S>) -> Result<Transfer, WeTransferError> {
@@ -50,7 +41,7 @@ impl TransferService {
             for part in 1..=file.multipart.part_numbers {
                 file_io.read(&mut buffer).unwrap();
                 let s3_url = self.upload_url_for(transfer.id.to_owned(), file.id.to_owned(), part)?.url;
-                self.perform_file_upload(s3_url, &buffer).unwrap();
+                self.requester.file_upload(s3_url, &buffer).unwrap();
             }
             self.mark_as_complete(transfer.id.to_owned(), file.id.to_owned(), file.multipart.part_numbers)?;
         }
@@ -59,12 +50,12 @@ impl TransferService {
 
     pub fn finalize<S: Into<String>+ToString>(&self, transfer_id: S) -> Result<Transfer, WeTransferError> {
         let path = format!("/{}/finalize", transfer_id.to_string());
-        self.perform_put::<FinalizeRequest, Transfer>(&path, FinalizeRequest {})
+        self.requester.put::<FinalizeRequest, Transfer>(&path, FinalizeRequest {})
     }
 
     pub fn upload_url_for<S: Into<String>+ToString>(&self, upload_id: S, file_id: S, part: u64) -> Result<GetUploadUrlResponse, WeTransferError> {
         let path = format!("/{}/files/{}/upload-url/{}", upload_id.to_string(), file_id.to_string(), part);
-        self.perform_get::<GetUploadUrlResponse>(&path)
+        self.requester.get::<GetUploadUrlResponse>(&path)
     }
 
     pub fn create_transfer_request<S: Into<String>+ToString>(&self, message: S, paths: &Vec<S>) -> Result<Transfer, WeTransferError> {
@@ -83,7 +74,7 @@ impl TransferService {
                     files: file_requests
                 };
 
-                self.perform_post::<CreateTransferRequest, Transfer>("/", payload)
+                self.requester.post::<CreateTransferRequest, Transfer>("/", payload)
             },
             Err(transfer_error) => Err(transfer_error)
         }
@@ -92,7 +83,7 @@ impl TransferService {
     pub fn mark_as_complete<S: Into<String>+ToString>(&self, upload_id: S, file_id: S, part_numbers: u64) -> Result<CompleteFileUploadResponse, WeTransferError> {
         let payload = CompleteFileUploadRequest { part_numbers: part_numbers };
         let path = format!("/{}/files/{}/upload-complete", upload_id.to_string(), file_id.to_string());
-        self.perform_put::<CompleteFileUploadRequest, CompleteFileUploadResponse>(&path, payload)
+        self.requester.put::<CompleteFileUploadRequest, CompleteFileUploadResponse>(&path, payload)
     } 
 
     fn extract_file_info(&self, path: &Path) -> Result<FileRequest, WeTransferError> {
@@ -107,96 +98,7 @@ impl TransferService {
                 message: error.description().to_string(),
             })
         }
-    }
-
-    fn construct_headers(&self) -> HeaderMap {
-        let mut headers = HeaderMap::new();
-        let api_key_value= HeaderValue::from_str(self.app_token.as_str()).unwrap();
-        let jwt_value = HeaderValue::from_str(format!("Bearer {}", self.jwt).as_str()).unwrap();
-        headers.insert(HeaderName::from_static("x-api-key"), api_key_value);
-        headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
-        headers.insert(AUTHORIZATION, jwt_value);
-        headers.insert(ACCEPT, HeaderValue::from_static("application/json"));
-        headers
-    }
-
-    fn perform_get<U: DeserializeOwned>(&self, path: &str) -> Result<U, WeTransferError> {
-        let result = self.http_client
-            .get(format!("{}{}", TRANSFERS_URL, path).as_str())
-            .headers(self.construct_headers())
-            .send();
-        self.handle_response(result)
-    }
-
-
-
-    fn perform_post<T: Serialize, U: DeserializeOwned>(&self, path: &str, payload: T) -> Result<U, WeTransferError> {
-        let result = self.http_client
-            .post(format!("{}{}", TRANSFERS_URL, path).as_str())
-            .headers(self.construct_headers())
-            .json(&payload).send();
-        self.handle_response(result)
-    }
-
-    fn perform_put<T: Serialize, U: DeserializeOwned>(&self, path: &str, payload: T) -> Result<U, WeTransferError> {
-        let result = self.http_client
-            .put(format!("{}{}", TRANSFERS_URL, path).as_str())
-            .headers(self.construct_headers())
-            .json(&payload).send();
-        self.handle_response(result)
-    }
-
-    fn perform_file_upload<S: Into<String>+ToString>(&self, url: S, io: &[u8]) -> Result<reqwest::Response, WeTransferError> {
-        let result = self.http_client
-            .put(url.to_string().as_str())
-            .body(io.to_vec())
-            .send();
-        match result {
-            Ok(response) => {
-                if response.status().is_success() {
-                    Ok(response) 
-                } else {
-                    Err(WeTransferError{
-                        status: response.status().as_u16(),
-                        message: String::from("S3 file upload failed"),
-                    })
-                }
-            },
-            Err(error_raw) => Err(WeTransferError {
-                status: 0,
-                message: format!("Error while uploading file for transfer: {}", error_raw.description().to_string())
-            })
-        }
-    }
-
-    fn handle_response<U: DeserializeOwned>(&self, result: Result<Response, reqwest::Error>) -> Result<U, WeTransferError> {
-        match result {
-            Ok(mut response) => {
-                if response.status().is_success() {
-                    match response.json::<U>() {
-                        Ok(final_response) => Ok(final_response),
-                        Err(error) => Err(WeTransferError { status: 0, message: error.description().to_string() })
-                    }
-                } else {
-                    let parsed_result = response.json::<WeTransferError>();
-                    match parsed_result {
-                        Ok(mut wetransfer_error) => {
-                            wetransfer_error.status = response.status().as_u16();
-                            Err(wetransfer_error)
-                        },
-                        Err(_) => Err(WeTransferError{
-                            status: 0,
-                            message: String::from("Error while parsing a WeTransfer error response. Contact mainteners.")
-                        }) 
-                    }
-                }
-            },
-            Err(error) => Err(WeTransferError {
-                status: 0,
-                message: error.description().to_string()
-            })
-        }
-    }
+    }   
 }
 
 #[cfg(test)]
@@ -248,14 +150,6 @@ mod tests {
         assert_eq!(upload_url_request.url, "https://s3-wetransfer.com/uploadhere");
     }
 
-    #[test]
-    fn it_uploads_files_to_s3() {
-        let url = format!("{}/upload", mockito::SERVER_URL);
-        let _m = mock("PUT", "/upload").with_status(200).create();
-        let service = TransferService::new("jwt-token", "1234");
-        let result = service.perform_file_upload(url, &[0;10]);
-        assert!(result.is_ok());
-    }
 
     #[test]
     fn it_completes_file_uploads() {

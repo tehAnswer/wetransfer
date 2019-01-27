@@ -26,3 +26,11 @@ pub struct CompleteFileUploadRequest {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct FinalizeRequest {}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateBoardRequest {
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub description: String,
+} 
