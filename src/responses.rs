@@ -74,13 +74,50 @@ pub struct CompleteFileUploadResponse {
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct CreateBoardResponse {
+pub struct Board {
     pub id: String,
     pub name: String,
     pub description: Option<String>,
     pub state: String,
     pub url: String,
     pub items: Vec<::serde_json::Value>,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Link {
+    pub id: String,
+    pub url: String,
+    pub meta: Meta,
+    #[serde(rename = "type")]
+    pub kind: String,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Meta {
+    pub title: String,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FileBoard {
+    pub id: String,
+    pub name: String,
+    pub size: u64,
+    pub multipart: MultipartFileBoard,
+    #[serde(rename = "type")]
+    pub kind: String,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MultipartFileBoard {
+    pub id: String,
+    pub part_numbers: u64,
+    pub chunk_size: u64,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CompleteFileBoardUploadResponse {
+    pub success: bool,
+    pub message: String,
 }
 
 

@@ -74,7 +74,7 @@ impl TransferService {
                     files: file_requests
                 };
 
-                self.requester.post::<CreateTransferRequest, Transfer>("/", payload)
+                self.requester.post::<CreateTransferRequest, Transfer>("", payload)
             },
             Err(transfer_error) => Err(transfer_error)
         }

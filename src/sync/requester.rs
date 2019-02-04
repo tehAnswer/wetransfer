@@ -79,7 +79,9 @@ impl RequestService {
                 if response.status().is_success() {
                     match response.json::<U>() {
                         Ok(final_response) => Ok(final_response),
-                        Err(error) => Err(WeTransferError { status: 0, message: error.description().to_string() })
+                        Err(error) => {
+                            Err(WeTransferError { status: 0, message: error.to_string() })
+                        }
                     }
                 } else {
                     let parsed_result = response.json::<WeTransferError>();

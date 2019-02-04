@@ -31,6 +31,17 @@ pub struct FinalizeRequest {}
 pub struct CreateBoardRequest {
     #[serde(default)]
     pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AddLink {
     #[serde(default)]
-    pub description: String,
-} 
+    pub url: String,
+    #[serde(default)]
+    pub title: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CompleteFileBoardUploadRequest {}
