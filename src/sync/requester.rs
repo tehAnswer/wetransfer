@@ -1,12 +1,14 @@
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use reqwest::{Response, Client, Body};
+use reqwest::{Response, Client};
 use reqwest::header::{AUTHORIZATION, ACCEPT, CONTENT_TYPE, HeaderValue, HeaderMap, HeaderName};
 use responses::WeTransferError;
 use std::error::Error;
 
+/// A wrapper around `reqwest::Client` that builds requests 
+/// and parses their responses into well-known structs.
 #[derive(Debug)]
-pub struct  RequestService {
+pub struct RequestService {
     http_client: Client,
     jwt: String,
     app_token: String,
@@ -14,6 +16,7 @@ pub struct  RequestService {
 }
 
 impl RequestService {
+    /// Constructor.
     pub fn new<S: Into<String>+ToString>(jwt: S, app_token: S, base_url: String) -> RequestService {
         RequestService {
             http_client: Client::new(),
@@ -23,6 +26,7 @@ impl RequestService {
         }
     }
 
+    /// Performs a GET HTTP requests
     pub fn get<U: DeserializeOwned>(&self, path: &str) -> Result<U, WeTransferError> {
         let url = format!("{}{}", self.base_url, path);
         let result = self.http_client
@@ -31,7 +35,8 @@ impl RequestService {
             .send();
         self.handle_response(result)
     }
-    
+
+    /// Performs a POST HTTP request
     pub fn post<T: Serialize, U: DeserializeOwned>(&self, path: &str, payload: T) -> Result<U, WeTransferError> {
         let url = format!("{}{}", self.base_url, path);
         let result = self.http_client
@@ -41,6 +46,7 @@ impl RequestService {
         self.handle_response(result)
     }
 
+    /// Performs a PUT HTTP request
     pub fn put<T: Serialize, U: DeserializeOwned>(&self, path: &str, payload: T) -> Result<U, WeTransferError> {
         let url = format!("{}{}", self.base_url, path);
         let result = self.http_client
@@ -50,6 +56,7 @@ impl RequestService {
         self.handle_response(result)
     }
 
+    /// Performs a file upload using a presigned S3 url.
     pub fn file_upload<S: Into<String>+ToString>(&self, url: S, io: &[u8]) -> Result<reqwest::Response, WeTransferError> {
         let result = self.http_client
             .put(url.to_string().as_str())
@@ -73,7 +80,7 @@ impl RequestService {
         }
     }
 
-    pub fn handle_response<U: DeserializeOwned>(&self, result: Result<Response, reqwest::Error>) -> Result<U, WeTransferError> {
+    fn handle_response<U: DeserializeOwned>(&self, result: Result<Response, reqwest::Error>) -> Result<U, WeTransferError> {
         match result {
             Ok(mut response) => {
                 if response.status().is_success() {
@@ -85,6 +92,7 @@ impl RequestService {
                     }
                 } else {
                     let parsed_result = response.json::<WeTransferError>();
+                    println!("{:?}", parsed_result);
                     match parsed_result {
                         Ok(mut wetransfer_error) => {
                             wetransfer_error.status = response.status().as_u16();

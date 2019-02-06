@@ -1,6 +1,7 @@
 extern crate serde_json;
 
 #[derive(Default, Debug, Serialize, Deserialize)]
+/// represents an error. Used as the root error type of the crate.
 pub struct WeTransferError {
     #[serde(default)]
     pub status: u16,
@@ -10,6 +11,7 @@ pub struct WeTransferError {
 }
 
 #[derive(Default, Debug, Serialize, Deserialize)]
+/// represents the response from a login attempt.
 pub struct Login {
     pub success: bool,
     #[serde(default)]
@@ -17,6 +19,7 @@ pub struct Login {
 }
 
 #[derive(Default, Debug, Serialize, Deserialize)]
+/// represents a WeTransfer file transfer. 
 pub struct Transfer {
     #[serde(default)]
     pub success: bool,
@@ -35,6 +38,7 @@ pub struct Transfer {
 }
 
 #[derive(Default, Debug, Serialize, Deserialize)]
+/// represents a file within a Transfer.
 pub struct File {
     #[serde(default)]
     pub multipart: Multipart,
@@ -57,6 +61,7 @@ pub struct Multipart {
 }
 
 #[derive(Default, Debug, Serialize, Deserialize)]
+/// represents the response when requesting the presigned S3 upload url.
 pub struct GetUploadUrlResponse {
     #[serde(default)]
     pub url: String,
@@ -65,6 +70,7 @@ pub struct GetUploadUrlResponse {
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
+/// represents the response of completing a file upload.
 pub struct CompleteFileUploadResponse {
     pub id: String,
     pub retries: u64,
@@ -74,6 +80,7 @@ pub struct CompleteFileUploadResponse {
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+/// represents a Board, where link and files can be added.
 pub struct Board {
     pub id: String,
     pub name: String,
@@ -84,6 +91,7 @@ pub struct Board {
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+/// represents a Board item which displays an external website.
 pub struct Link {
     pub id: String,
     pub url: String,
@@ -98,6 +106,7 @@ pub struct Meta {
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+/// represents a Board item which renders a traditional file (e.g image).
 pub struct FileBoard {
     pub id: String,
     pub name: String,

@@ -10,6 +10,7 @@ use responses::*;
 use requests::*;
 
 #[derive(Debug)]
+/// A service to perform operations related to file Transfers. 
 pub struct TransferService {
     requester: RequestService,
 }

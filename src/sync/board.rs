@@ -8,6 +8,7 @@ use std::error::Error;
 use std::io::prelude::*;
 
 #[derive(Debug)]
+/// A service to perform operations in Boards. 
 pub struct BoardService {
     requester: RequestService
 }
@@ -24,25 +25,29 @@ impl BoardService {
         }
     }
 
-    pub fn create<S: Into<String>+ToString>(&self, name: S, description: Option<String>) -> Result<Board, WeTransferError> {
-        let payload = CreateBoardRequest { name: name.to_string(), description: description };
+    pub fn create<S: Into<String>+ToString>(&self, name: S, description: Option<S>) -> Result<Board, WeTransferError> {
+        let normalized_desc = match description {
+            Some(contents) => Some(contents.to_string()),
+            None => None,
+        };
+        let payload = CreateBoardRequest { name: name.to_string(), description: normalized_desc };
         self.requester.post::<CreateBoardRequest, Board>("/", payload)
     }
     
-    pub fn add_links<S: Into<String>+ToString>(&self, board_id: S, links: Vec<AddLink>) -> Result<Vec<Link>, WeTransferError> {
+    pub fn add_links<S: Into<String>+ToString>(&self, board_id: S, links: &Vec<AddLink>) -> Result<Vec<Link>, WeTransferError> {
         let path = format!("/{}/links", board_id.to_string());
-        self.requester.post::<Vec<AddLink>, Vec<Link>>(&path, links)
+        self.requester.post::<&Vec<AddLink>, Vec<Link>>(&path, links)
     }
 
-    pub fn add_files(&self, board_id: String, paths: &Vec<String>) -> Result<(), WeTransferError> {
-        let result = self.start_file_uploads(board_id.to_string(), paths);
+    pub fn add_files<S: Into<String>+ToString>(&self, board_id: S, paths: &Vec<S>) -> Result<(), WeTransferError> {
+        let result = self.start_file_uploads(&board_id, paths);
         match result {
-            Ok(list_of_files) => self.fulfill_file_uploads(board_id.to_string(), &list_of_files, paths),
+            Ok(list_of_files) => self.fulfill_file_uploads(&board_id, paths, &list_of_files),
             Err(wetransfer_error) => Err(wetransfer_error)
         }
     }
 
-    fn start_file_uploads<S: Into<String>+ToString>(&self, board_id: S, paths: &Vec<S>) -> Result<Vec<FileBoard>, WeTransferError> {
+    fn start_file_uploads<S: Into<String>+ToString>(&self, board_id: &S, paths: &Vec<S>) -> Result<Vec<FileBoard>, WeTransferError> {
         let files = paths.into_iter().map(|path_str: &S| {
             // Compiler suggested to put this expression under
             // a let variable.
@@ -60,7 +65,7 @@ impl BoardService {
         }
     }
 
-    fn fulfill_file_uploads<S: Into<String>+ToString>(&self, board_id: S, list_of_files: &Vec<FileBoard>, paths: &Vec<S>) -> Result<(), WeTransferError> {
+    fn fulfill_file_uploads<S: Into<String>+ToString>(&self, board_id: &S, paths: &Vec<S>, list_of_files: &Vec<FileBoard>) -> Result<(), WeTransferError> {
         for (index, file) in list_of_files.iter().enumerate() {
             let path_str = paths.get(index).unwrap().to_string();
             let path = Path::new(path_str.as_str());
@@ -108,6 +113,7 @@ mod tests {
     use super::*;
     use mockito::mock;
     use std::fs;
+    use std::process::Command;
 
     #[test]
     fn it_creates_boards() {
@@ -142,7 +148,7 @@ mod tests {
         let instance = BoardService::new("jwt-token", "1234");
         let mut links: Vec<AddLink> = Vec::new();
         links.push(AddLink { url: String::from("https://wetransfer.com"), title: String::from("WeTransfer")});
-        let result = instance.add_links("id-board", links);
+        let result = instance.add_links("id-board", &links);
         assert!(result.is_ok());
         let response = result.unwrap();
         assert_eq!(response[0].id, String::from("random-hash"));
@@ -153,19 +159,18 @@ mod tests {
 
     #[test]
     fn it_requests_s3_urls_for_uploading_parts() {
-        let upload_id = "041bae61-adb4-4ba2-80eb-48719396f0e3";
+        let board_id = "041bae61-adb4-4ba2-80eb-48719396f0e3";
         let file_id = "783b21e9-f8f1-46d5-894c-62954109d11d";
-        let multipart_id = "multipart_id";
-        let path = format!("/{}/files/{}/upload-url/{}/{}", upload_id, file_id, 1, multipart_id);
+        let multipart_id = "multipart-id";
+        let path = format!("/{}/files/{}/upload-url/{}/{}", board_id, file_id, 1, multipart_id);
         let _m = mock("GET", path.as_str())
-          .with_status(201)
+          .with_status(200)
           .match_header("Authorization", "Bearer jwt-token")
           .match_header("x-api-key", "1234")
           .with_body("{\"success\": true, \"url\":\"https://s3-wetransfer.com/uploadhere\"}")
           .create();
-
         let service = BoardService::new("jwt-token", "1234");
-        let upload_url_request = service.upload_url_for(upload_id, file_id, 1, multipart_id).unwrap();
+        let upload_url_request = service.upload_url_for(board_id, file_id, 1, multipart_id).unwrap();
 
         assert!(upload_url_request.success);
         assert_eq!(upload_url_request.url, "https://s3-wetransfer.com/uploadhere");
@@ -175,9 +180,9 @@ mod tests {
     #[test]
     fn it_completes_file_board_uploads() {
         let body = fs::read_to_string(Path::new("src/support/complete_file_board_upload.json")).expect("Fixtures:");
-        let upload_id = "041bae61-adb4-4ba2-80eb-48719396f0e3";
+        let board_id = "041bae61-adb4-4ba2-80eb-48719396f0e3";
         let file_id = "783b21e9-f8f1-46d5-894c-62954109d11d";
-        let path = format!("/{}/files/{}/upload-complete", upload_id, file_id);
+        let path = format!("/{}/files/{}/upload-complete", board_id, file_id);
         let _m = mock("PUT", path.as_str())
           .with_status(200)
           .match_header("Authorization", "Bearer jwt-token")
@@ -186,7 +191,7 @@ mod tests {
           .create();
 
         let service = BoardService::new("jwt-token", "1234");
-        let result = service.mark_as_complete(upload_id, file_id);
+        let result = service.mark_as_complete(board_id, file_id);
         assert!(result.is_ok());
     }
 }

@@ -1,6 +1,7 @@
 extern crate serde_json;
 
 #[derive(Debug, Serialize, Deserialize)]
+/// represents the body schema required to initiate a transfer request.
 pub struct CreateTransferRequest {
     #[serde(default)]
     pub message: String,
@@ -9,6 +10,7 @@ pub struct CreateTransferRequest {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+/// as a part of `CreateTransferRequest`, it represents the files to be transfered.
 pub struct FileRequest {
     #[serde(default)]
     pub name: String,
@@ -16,18 +18,18 @@ pub struct FileRequest {
     pub size: u64,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct GetUrlRequest {}
-
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
+/// represents the body schema required to mark a file upload as completed.
 pub struct CompleteFileUploadRequest {
     pub part_numbers: u64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+/// represents the body schema required to mark a transfer as finalized.
 pub struct FinalizeRequest {}
 
 #[derive(Debug, Serialize, Deserialize)]
+/// represents the body schema required to create a board.
 pub struct CreateBoardRequest {
     #[serde(default)]
     pub name: String,
@@ -36,6 +38,7 @@ pub struct CreateBoardRequest {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+/// represents the body schema required to add a link to a board.
 pub struct AddLink {
     #[serde(default)]
     pub url: String,
@@ -44,4 +47,5 @@ pub struct AddLink {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+/// represents the body schema required to mark a file upload for a board as completed.
 pub struct CompleteFileBoardUploadRequest {}
