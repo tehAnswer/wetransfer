@@ -7,6 +7,9 @@ description = "Unofficial WeTransfer client written in Rust."
 repository = "https://github.com/tehAnswer/wetransfer"
 readme = "README.md"
 
+[badges]
+travis-ci = { repository = "tehAnswer/wetransfer" }
+
 [dependencies]
 reqwest = { version = "0.9.8", features = ["hyper-011"] }
 serde = "1.0"
