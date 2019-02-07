@@ -16,55 +16,53 @@ pub struct TransferService {
 }
 
 #[cfg(not(test))]
-const TRANSFERS_URL: &'static str = "https://dev.wetransfer.com/v2/transfers";
+const TRANSFERS_URL: &str = "https://dev.wetransfer.com/v2/transfers";
 #[cfg(test)]
-const TRANSFERS_URL: &'static str = mockito::SERVER_URL;
+const TRANSFERS_URL: &str = mockito::SERVER_URL;
 
 impl TransferService {
-    pub fn new<S: Into<String>+ToString>(jwt: S, app_token: S) -> TransferService {
+    pub fn new(jwt: String, app_token: String) -> TransferService {
         TransferService {
-            requester: RequestService::new(jwt.to_string(), app_token.to_string(), TRANSFERS_URL.to_owned())
+            requester: RequestService::new(jwt, app_token, TRANSFERS_URL.to_owned())
         }
     }
 
-    pub fn find<S: Into<String>+ToString>(&self, transfer_id: S) -> Result<Transfer, WeTransferError> {
-        let path = format!("/{}", transfer_id.to_string());
+    pub fn find<S: Into<String>>(&self, transfer_id: S) -> Result<Transfer, WeTransferError> {
+        let path = format!("/{}", transfer_id.into());
         self.requester.get::<Transfer>(&path)
     }
 
-    pub fn create<S: Into<String>+ToString>(&self, message: S, paths: &Vec<S>) -> Result<Transfer, WeTransferError> {
+    pub fn create(&self, message: &str, paths: &[&str]) -> Result<Transfer, WeTransferError> {
         let transfer = self.create_transfer_request(message, paths)?;
         for (index, file) in transfer.files.iter().enumerate() {
-            let path_str = paths.get(index).unwrap().to_string();
-            let path = Path::new(path_str.as_str());
+            let path = Path::new(paths[index]);
             let mut file_io = File::open(path).unwrap();
             let mut buffer = std::vec::from_elem(0, file.multipart.chunk_size as usize);
             for part in 1..=file.multipart.part_numbers {
-                file_io.read(&mut buffer).unwrap();
-                let s3_url = self.upload_url_for(transfer.id.to_owned(), file.id.to_owned(), part)?.url;
+                file_io.read_exact(&mut buffer).unwrap();
+                let s3_url = self.upload_url_for(&transfer.id, &file.id, part)?.url;
                 self.requester.file_upload(s3_url, &buffer).unwrap();
             }
-            self.mark_as_complete(transfer.id.to_owned(), file.id.to_owned(), file.multipart.part_numbers)?;
+            self.mark_as_complete(&transfer.id, &file.id, file.multipart.part_numbers)?;
         }
-        self.finalize(transfer.id.to_owned())
+        self.finalize(&transfer.id)
     }
 
-    pub fn finalize<S: Into<String>+ToString>(&self, transfer_id: S) -> Result<Transfer, WeTransferError> {
-        let path = format!("/{}/finalize", transfer_id.to_string());
+    pub fn finalize(&self, transfer_id: &str) -> Result<Transfer, WeTransferError> {
+        let path = format!("/{}/finalize", transfer_id);
         self.requester.put::<FinalizeRequest, Transfer>(&path, FinalizeRequest {})
     }
 
-    pub fn upload_url_for<S: Into<String>+ToString>(&self, upload_id: S, file_id: S, part: u64) -> Result<GetUploadUrlResponse, WeTransferError> {
-        let path = format!("/{}/files/{}/upload-url/{}", upload_id.to_string(), file_id.to_string(), part);
+    pub fn upload_url_for(&self, upload_id: &str, file_id: &str, part: u64) -> Result<GetUploadUrlResponse, WeTransferError> {
+        let path = format!("/{}/files/{}/upload-url/{}", upload_id, file_id, part);
         self.requester.get::<GetUploadUrlResponse>(&path)
     }
 
-    pub fn create_transfer_request<S: Into<String>+ToString>(&self, message: S, paths: &Vec<S>) -> Result<Transfer, WeTransferError> {
-        let files = paths.into_iter().map(|path_str: &S| {
+    pub fn create_transfer_request(&self, message: &str, paths: &[&str]) -> Result<Transfer, WeTransferError> {
+        let files = paths.iter().map(|path_str: &&str| {
             // Compiler suggested to put this expression under
             // a let variable.
-            let path_str_ref = path_str.to_string();
-            let path = Path::new(&path_str_ref);
+            let path = Path::new(*path_str);
             self.extract_file_info(&path)
         }).collect();
 
@@ -81,9 +79,9 @@ impl TransferService {
         }
     }
 
-    pub fn mark_as_complete<S: Into<String>+ToString>(&self, upload_id: S, file_id: S, part_numbers: u64) -> Result<CompleteFileUploadResponse, WeTransferError> {
-        let payload = CompleteFileUploadRequest { part_numbers: part_numbers };
-        let path = format!("/{}/files/{}/upload-complete", upload_id.to_string(), file_id.to_string());
+    pub fn mark_as_complete(&self, upload_id: &str, file_id: &str, part_numbers: u64) -> Result<CompleteFileUploadResponse, WeTransferError> {
+        let payload = CompleteFileUploadRequest { part_numbers };
+        let path = format!("/{}/files/{}/upload-complete", upload_id, file_id);
         self.requester.put::<CompleteFileUploadRequest, CompleteFileUploadResponse>(&path, payload)
     } 
 
@@ -118,7 +116,7 @@ mod tests {
           .with_body(body)
           .create();
 
-        let service = TransferService::new("jwt-token", "1234");
+        let service = TransferService::new("jwt-token".into(), "1234".into());
         let transfer_request = service.create_transfer_request("foo", &vec!["Cargo.toml"]).unwrap();
         assert!(transfer_request.success);
         assert_eq!(transfer_request.id, "32a6ef6003f1429be0cf1674dd8fbdef20181019143517");
@@ -144,7 +142,7 @@ mod tests {
           .with_body("{\"success\": true, \"url\":\"https://s3-wetransfer.com/uploadhere\"}")
           .create();
 
-        let service = TransferService::new("jwt-token", "1234");
+        let service = TransferService::new("jwt-token".into(), "1234".into());
         let upload_url_request = service.upload_url_for(upload_id, file_id, 1).unwrap();
 
         assert!(upload_url_request.success);
@@ -166,7 +164,7 @@ mod tests {
           .with_body(body)
           .create();
 
-        let service = TransferService::new("jwt-token", "1234");
+        let service = TransferService::new("jwt-token".into(), "1234".into());
         let result = service.mark_as_complete(upload_id, file_id, 1);
         assert!(result.is_ok());
     }
@@ -183,7 +181,7 @@ mod tests {
           .with_body(body)
           .create();
 
-        let service = TransferService::new("jwt-token", "1234");
+        let service = TransferService::new("jwt-token".into(), "1234".into());
         let transfer = service.finalize(upload_id).unwrap();
         assert_eq!(transfer.id, upload_id);
         assert_eq!(transfer.url.unwrap(), "https://we.tl/t-12344657");
@@ -202,7 +200,7 @@ mod tests {
           .with_body(body)
           .create();
         
-        let service = TransferService::new("jwt-token", "1234");
+        let service = TransferService::new("jwt-token".into(), "1234".into());
         let transfer = service.find(upload_id).unwrap();
         assert_eq!(transfer.id, upload_id);
         assert_eq!(transfer.url.unwrap(), "https://we.tl/t-12344657");

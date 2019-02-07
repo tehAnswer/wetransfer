@@ -12,7 +12,25 @@ can be started. Those files expire after seven days.
 where both files and links can be pinned. These boards will expire
 after three months of inactivity.
 
+## Install
+
+First, add to your crate root the following line:
+
+```
+[dependencies]
+wetransfer = "0.1.1"
+```
+
+Then, import the crate into your application by adding the following line at your project's root.
+
+```rust
+extern crate wetransfer;
+```
+
+
 ## Usage
+
+In this section, all the features offered by the crate are showcased.
 
 ```rust
 extern crate wetransfer;
@@ -44,11 +62,11 @@ fn main() {
             title: "Sergio".to_string()
         }
     ];
-    let result_links = client.boards.add_links(board.id.as_str(), &links);
+    let result_links = client.boards.add_links(&board.id, &links);
     println!("{:?}", result_links);
 
     // Or add files.
-    let result_files = client.boards.add_files(board.id.as_str(), &file_paths);
+    let result_files = client.boards.add_files(&board.id, &file_paths);
     println!("{:?}", result_files); 
 }
 ```

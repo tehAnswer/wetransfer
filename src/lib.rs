@@ -1,5 +1,4 @@
 //! # WeTransfer
-
 //! [WeTransfer](https://wetransfer.com) is a file transfer service specialized 
 //! in sending large files via email. This crate acts as an unofficial Rust client
 //! of their [public api](https://developers.wetransfer.com/documentation),

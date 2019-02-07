@@ -14,14 +14,14 @@ pub struct BoardService {
 }
 
 #[cfg(not(test))]
-const BOARDS_URL: &'static str = "https://dev.wetransfer.com/v2/boards";
+const BOARDS_URL: &str = "https://dev.wetransfer.com/v2/boards";
 #[cfg(test)]
-const BOARDS_URL: &'static str = mockito::SERVER_URL;
+const BOARDS_URL: &str = mockito::SERVER_URL;
 
 impl BoardService {
-    pub fn new<S: Into<String>+ToString>(jwt: S, app_token: S) -> BoardService {
+    pub fn new(jwt: String, app_token: String) -> BoardService {
         BoardService {
-            requester: RequestService::new(jwt.to_string(), app_token.to_string(), BOARDS_URL.to_owned()),
+            requester: RequestService::new(jwt, app_token, BOARDS_URL.to_owned()),
         }
     }
 
@@ -34,12 +34,12 @@ impl BoardService {
         self.requester.post::<CreateBoardRequest, Board>("/", payload)
     }
     
-    pub fn add_links<S: Into<String>+ToString>(&self, board_id: S, links: &Vec<AddLink>) -> Result<Vec<Link>, WeTransferError> {
+    pub fn add_links<S: Into<String>+ToString>(&self, board_id: S, links: &[AddLink]) -> Result<Vec<Link>, WeTransferError> {
         let path = format!("/{}/links", board_id.to_string());
-        self.requester.post::<&Vec<AddLink>, Vec<Link>>(&path, links)
+        self.requester.post::<&[AddLink], Vec<Link>>(&path, links)
     }
 
-    pub fn add_files<S: Into<String>+ToString>(&self, board_id: S, paths: &Vec<S>) -> Result<(), WeTransferError> {
+    pub fn add_files<S: Into<String>+ToString>(&self, board_id: S, paths: &[S]) -> Result<(), WeTransferError> {
         let result = self.start_file_uploads(&board_id, paths);
         match result {
             Ok(list_of_files) => self.fulfill_file_uploads(&board_id, paths, &list_of_files),
@@ -47,8 +47,8 @@ impl BoardService {
         }
     }
 
-    fn start_file_uploads<S: Into<String>+ToString>(&self, board_id: &S, paths: &Vec<S>) -> Result<Vec<FileBoard>, WeTransferError> {
-        let files = paths.into_iter().map(|path_str: &S| {
+    fn start_file_uploads<S: Into<String>+ToString>(&self, board_id: &S, paths: &[S]) -> Result<Vec<FileBoard>, WeTransferError> {
+        let files = paths.iter().map(|path_str: &S| {
             // Compiler suggested to put this expression under
             // a let variable.
             let path_str_ref = path_str.to_string();
@@ -65,14 +65,14 @@ impl BoardService {
         }
     }
 
-    fn fulfill_file_uploads<S: Into<String>+ToString>(&self, board_id: &S, paths: &Vec<S>, list_of_files: &Vec<FileBoard>) -> Result<(), WeTransferError> {
+    fn fulfill_file_uploads<S: Into<String>+ToString>(&self, board_id: &S, paths: &[S], list_of_files: &[FileBoard]) -> Result<(), WeTransferError> {
         for (index, file) in list_of_files.iter().enumerate() {
-            let path_str = paths.get(index).unwrap().to_string();
+            let path_str = paths[index].to_string();
             let path = Path::new(path_str.as_str());
             let mut file_io = File::open(path).unwrap();
             let mut buffer = std::vec::from_elem(0, file.multipart.chunk_size as usize);
             for part in 1..=file.multipart.part_numbers {
-                file_io.read(&mut buffer).unwrap();
+                file_io.read_exact(&mut buffer).unwrap();
                 let s3_url = self.upload_url_for(board_id.to_string(), file.id.to_owned(), part, file.multipart.id.to_string())?.url;
                 self.requester.file_upload(s3_url, &buffer).unwrap();
             }
@@ -113,7 +113,6 @@ mod tests {
     use super::*;
     use mockito::mock;
     use std::fs;
-    use std::process::Command;
 
     #[test]
     fn it_creates_boards() {
@@ -125,7 +124,7 @@ mod tests {
           .with_body(body)
           .create();
         
-        let instance = BoardService::new("jwt-token", "1234");
+        let instance = BoardService::new("jwt-token".into(), "1234".into());
         let result = instance.create("xd", None);
         assert!(result.is_ok());
         let response = result.unwrap();
@@ -145,7 +144,7 @@ mod tests {
           .with_body(body)
           .create();
 
-        let instance = BoardService::new("jwt-token", "1234");
+        let instance = BoardService::new("jwt-token".into(), "1234".into());
         let mut links: Vec<AddLink> = Vec::new();
         links.push(AddLink { url: String::from("https://wetransfer.com"), title: String::from("WeTransfer")});
         let result = instance.add_links("id-board", &links);
@@ -169,7 +168,7 @@ mod tests {
           .match_header("x-api-key", "1234")
           .with_body("{\"success\": true, \"url\":\"https://s3-wetransfer.com/uploadhere\"}")
           .create();
-        let service = BoardService::new("jwt-token", "1234");
+        let service = BoardService::new("jwt-token".into(), "1234".into());
         let upload_url_request = service.upload_url_for(board_id, file_id, 1, multipart_id).unwrap();
 
         assert!(upload_url_request.success);
@@ -190,7 +189,7 @@ mod tests {
           .with_body(body)
           .create();
 
-        let service = BoardService::new("jwt-token", "1234");
+        let service = BoardService::new("jwt-token".into(), "1234".into());
         let result = service.mark_as_complete(board_id, file_id);
         assert!(result.is_ok());
     }

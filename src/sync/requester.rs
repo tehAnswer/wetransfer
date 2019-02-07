@@ -17,7 +17,7 @@ pub struct RequestService {
 
 impl RequestService {
     /// Constructor.
-    pub fn new<S: Into<String>+ToString>(jwt: S, app_token: S, base_url: String) -> RequestService {
+    pub fn new(jwt: String, app_token: String, base_url: String) -> RequestService {
         RequestService {
             http_client: Client::new(),
             jwt: jwt.to_string(),
@@ -133,7 +133,7 @@ mod tests {
     fn it_uploads_files_to_s3() {
         let url = format!("{}/upload", mockito::SERVER_URL);
         let _m = mock("PUT", "/upload").with_status(200).create();
-        let service = RequestService::new("jwt-token", "1234", mockito::SERVER_URL.to_string());
+        let service = RequestService::new("jwt-token".into(), "1234".into(), mockito::SERVER_URL.to_string());
         let result = service.file_upload(url, &[0;10]);
         assert!(result.is_ok());
     }

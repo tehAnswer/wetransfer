@@ -6,9 +6,9 @@ pub mod board;
 pub mod requester;
 
 #[cfg(not(test))]
-const LOGIN_URL: &'static str = "https://dev.wetransfer.com/v2/authorize";
+const LOGIN_URL: &str = "https://dev.wetransfer.com/v2/authorize";
 #[cfg(test)]
-const LOGIN_URL: &'static str = mockito::SERVER_URL;
+const LOGIN_URL: &str = mockito::SERVER_URL;
 
 #[derive(Debug)]
 pub struct Client {
