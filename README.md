@@ -1,3 +1,9 @@
+# Public WeTransfer API Deprecated since 2022-05-31
+
+> As of May 31, 2022, WeTransfer’s Public API is no longer available. 
+> 
+> Official anouncement: https://help.wetransfer.com/hc/en-us/articles/360038551772-We-ve-retired-our-Public-API
+
 # WeTransfer
 
 [WeTransfer](https://wetransfer.com) is a file transfer service specialized 
